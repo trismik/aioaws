@@ -184,7 +184,7 @@ class AWSv4Auth:
             'host': url.host,
             'x-amz-date': _aws4_x_amz_date(now),
         }
-        if self.session_token:
+        if self.session_token is not None:
             headers['x-amz-security-token'] = self.session_token
 
         payload_sha256_hash = hashlib.sha256(data).hexdigest()

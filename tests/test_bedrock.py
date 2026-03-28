@@ -1,10 +1,8 @@
-import os
-
 import pytest
 from httpx import AsyncClient
 
 from aioaws.bedrock import BedrockClient, BedrockConfig
-from tests.conftest import AWS
+from aioaws.core import RequestError
 
 
 def test_bedrock_config():
@@ -26,17 +24,18 @@ def test_bedrock_config_with_session_token():
     assert config.aws_session_token == 'token123'
 
 
-def test_bedrock_client_base_url():
+async def test_bedrock_client_base_url():
     config = BedrockConfig('key', 'secret', 'eu-west-1')
-    client = BedrockClient(AsyncClient(), config)
-    assert client._base_url == 'https://bedrock-runtime.eu-west-1.amazonaws.com'
+    async with AsyncClient() as http_client:
+        bedrock = BedrockClient(http_client, config)
+        assert bedrock._base_url == 'https://bedrock-runtime.eu-west-1.amazonaws.com'
 
 
 async def test_invoke(client: AsyncClient):
     config = BedrockConfig('test_access_key', 'test_secret_key', 'us-east-1')
     bedrock = BedrockClient(client, config)
     response = await bedrock.invoke(
-        model='anthropic.claude-haiku-4-5-20251001-v1:0',
+        model='global.anthropic.claude-haiku-4-5-20251001-v1:0',
         body={
             'anthropic_version': 'bedrock-2023-05-31',
             'max_tokens': 256,
@@ -51,7 +50,7 @@ async def test_converse(client: AsyncClient):
     config = BedrockConfig('test_access_key', 'test_secret_key', 'us-east-1')
     bedrock = BedrockClient(client, config)
     response = await bedrock.converse(
-        model='anthropic.claude-haiku-4-5-20251001-v1:0',
+        model='global.anthropic.claude-haiku-4-5-20251001-v1:0',
         body={
             'messages': [{'role': 'user', 'content': [{'text': 'Hello'}]}],
             'inferenceConfig': {'maxTokens': 256},
@@ -66,32 +65,30 @@ async def test_model_id_with_colon(client: AsyncClient):
     config = BedrockConfig('test_access_key', 'test_secret_key', 'us-east-1')
     bedrock = BedrockClient(client, config)
     response = await bedrock.converse(
-        model='anthropic.claude-haiku-4-5-20251001-v1:0',
+        model='global.anthropic.claude-haiku-4-5-20251001-v1:0',
         body={'messages': [{'role': 'user', 'content': [{'text': 'test'}]}]},
     )
     assert response['output']['message']['content'][0]['text'] == 'mock converse response'
 
 
-@pytest.fixture(name='real_aws')
-def _fix_real_aws():
-    access_key = os.getenv('TEST_AWS_ACCESS_KEY')
-    secret_key = os.getenv('TEST_AWS_SECRET_KEY')
-    if access_key and secret_key:
-        return AWS(access_key, secret_key)
-    else:
-        pytest.skip('requires TEST_AWS_ACCESS_KEY & TEST_AWS_SECRET_KEY env var')
+async def test_invoke_error(client: AsyncClient):
+    config = BedrockConfig('test_access_key', 'test_secret_key', 'us-east-1')
+    bedrock = BedrockClient(client, config)
+    with pytest.raises(RequestError):
+        await bedrock.invoke(model='nonexistent/model', body={})
 
 
-async def test_real_converse(real_aws: AWS):
+async def test_real_converse(real_aws):
     config = BedrockConfig(
         aws_access_key=real_aws.access_key,
         aws_secret_key=real_aws.secret_key,
         aws_region='us-east-1',
+        aws_session_token=real_aws.session_token,
     )
     async with AsyncClient(timeout=30) as http_client:
         bedrock = BedrockClient(http_client, config)
         response = await bedrock.converse(
-            model='anthropic.claude-haiku-4-5-20251001-v1:0',
+            model='global.anthropic.claude-haiku-4-5-20251001-v1:0',
             body={
                 'messages': [{'role': 'user', 'content': [{'text': 'Say just "hello"'}]}],
                 'inferenceConfig': {'maxTokens': 32},
@@ -103,16 +100,17 @@ async def test_real_converse(real_aws: AWS):
         assert response['usage']['inputTokens'] > 0
 
 
-async def test_real_invoke(real_aws: AWS):
+async def test_real_invoke(real_aws):
     config = BedrockConfig(
         aws_access_key=real_aws.access_key,
         aws_secret_key=real_aws.secret_key,
         aws_region='us-east-1',
+        aws_session_token=real_aws.session_token,
     )
     async with AsyncClient(timeout=30) as http_client:
         bedrock = BedrockClient(http_client, config)
         response = await bedrock.invoke(
-            model='anthropic.claude-haiku-4-5-20251001-v1:0',
+            model='global.anthropic.claude-haiku-4-5-20251001-v1:0',
             body={
                 'anthropic_version': 'bedrock-2023-05-31',
                 'max_tokens': 32,
