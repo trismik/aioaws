@@ -43,6 +43,8 @@ class CustomAsyncClient(AsyncClient):
             return new_url.copy_with(path=f'/s3{new_url.path}')
         elif 'email.' in url.host:
             return new_url.copy_with(path='/ses/')
+        elif 'bedrock-runtime.' in url.host:
+            return new_url.copy_with(path=f'/bedrock{new_url.path}')
         elif url.host.startswith('sns.'):
             if 'bad' in url.path:
                 return new_url.copy_with(path='/status/400/')
@@ -92,6 +94,7 @@ def _fix_build_sns_webhook(mocker):
 class AWS:
     access_key: str
     secret_key: str
+    session_token: str | None = None
 
 
 @pytest.fixture(name='real_aws')
@@ -99,6 +102,6 @@ def _fix_real_aws():
     access_key = os.getenv('TEST_AWS_ACCESS_KEY')
     secret_key = os.getenv('TEST_AWS_SECRET_KEY')
     if access_key and secret_key:
-        return AWS(access_key, secret_key)
+        return AWS(access_key, secret_key, session_token=os.getenv('TEST_AWS_SESSION_TOKEN'))
     else:
         pytest.skip('requires TEST_AWS_ACCESS_KEY & TEST_AWS_SECRET_KEY env var')
