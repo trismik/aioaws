@@ -51,11 +51,15 @@ class AwsClient:
                     self.host = f'{bucket}.s3.{self.region}.amazonaws.com'
         self.schema = 'https'
 
+        session_token: str | None = getattr(config, 'aws_session_token', None)
+        if session_token is not None and not isinstance(session_token, str):
+            raise ValueError(f'aws_session_token must be a string, not {type(session_token).__name__}')
         self._auth = AWSv4Auth(
             aws_secret_key=self.aws_secret_key,
             aws_access_key=self.aws_access_key,
             region=self.region,
             service=self.service,
+            session_token=session_token,
         )
 
     @property
@@ -153,11 +157,13 @@ class AWSv4Auth:
         aws_access_key: str,
         region: str,
         service: str,
+        session_token: str | None = None,
     ) -> None:
         self.aws_secret_key = aws_secret_key
         self.aws_access_key = aws_access_key
         self.region = region
         self.service = service
+        self.session_token = session_token
 
     def auth_headers(
         self,
@@ -172,12 +178,14 @@ class AWSv4Auth:
         content_type = content_type or _CONTENT_TYPE
 
         # WARNING! order is important here, headers need to be in alphabetical order
-        headers = {
+        headers: dict[str, str] = {
             'content-md5': base64.b64encode(hashlib.md5(data).digest()).decode(),
             'content-type': content_type,
             'host': url.host,
             'x-amz-date': _aws4_x_amz_date(now),
         }
+        if self.session_token:
+            headers['x-amz-security-token'] = self.session_token
 
         payload_sha256_hash = hashlib.sha256(data).hexdigest()
         signed_headers, signature = self.aws4_signature(now, method, url, headers, payload_sha256_hash)
@@ -237,12 +245,14 @@ class AWSV4AuthFlow(Auth):
         aws_access_key: str,
         region: str,
         service: str,
+        session_token: str | None = None,
     ) -> None:
         self._authorizer = AWSv4Auth(
             aws_secret_key=aws_secret_key,
             aws_access_key=aws_access_key,
             region=region,
             service=service,
+            session_token=session_token,
         )
 
     def auth_flow(self, request: Request) -> Generator[Request, Response, None]:

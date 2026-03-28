@@ -43,6 +43,8 @@ class CustomAsyncClient(AsyncClient):
             return new_url.copy_with(path=f'/s3{new_url.path}')
         elif 'email.' in url.host:
             return new_url.copy_with(path='/ses/')
+        elif 'bedrock-runtime.' in url.host:
+            return new_url.copy_with(path=f'/bedrock{new_url.path}')
         elif url.host.startswith('sns.'):
             if 'bad' in url.path:
                 return new_url.copy_with(path='/status/400/')

@@ -120,10 +120,40 @@ async def xml_error(request):
     return Response(body=s3_list_response_template, content_type='application/xml', status=456)
 
 
+async def bedrock_invoke(request: web.Request) -> Response:
+    return web.json_response(
+        {
+            'type': 'message',
+            'content': [{'type': 'text', 'text': 'mock invoke response'}],
+            'usage': {'input_tokens': 10, 'output_tokens': 5},
+            'stop_reason': 'end_turn',
+            'model': request.match_info['model_id'],
+        }
+    )
+
+
+async def bedrock_converse(request: web.Request) -> Response:
+    return web.json_response(
+        {
+            'output': {
+                'message': {
+                    'role': 'assistant',
+                    'content': [{'text': 'mock converse response'}],
+                },
+            },
+            'stopReason': 'end_turn',
+            'usage': {'inputTokens': 10, 'outputTokens': 5, 'totalTokens': 15},
+            'metrics': {'latencyMs': 42},
+        }
+    )
+
+
 routes = [
     web.route('*', '/s3/', s3_root),
     web.get('/s3/testing.txt', s3_file),
     web.post('/ses/', ses_send),
     web.get('/sns/certs/', aws_certs),
     web.get('/xml-error/', xml_error),
+    web.post('/bedrock/model/{model_id}/invoke', bedrock_invoke),
+    web.post('/bedrock/model/{model_id}/converse', bedrock_converse),
 ]
